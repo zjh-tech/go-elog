@@ -9,13 +9,6 @@ func Benchmark_Info(b *testing.B) {
 	}
 }
 
-func Benchmark_InfoA(b *testing.B) {
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		TestLogger.InfoA("Benchmark InfoA")
-	}
-}
-
 var TestLogger *Logger
 
 func init() {

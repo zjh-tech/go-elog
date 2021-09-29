@@ -16,7 +16,6 @@ type Logger struct {
 	out           io.Writer //os.Stderr -> File
 	level         int
 	fileDirPrefix string
-	events        chan *LogEvent
 	buffEvents    chan *LogEvent
 	exitChan      chan struct{}
 	lastTime      time.Time
@@ -33,7 +32,6 @@ func NewLogger(fileDirPrefix string, level int) *Logger {
 		out:           os.Stderr,
 		level:         level,
 		fileDirPrefix: fileDirPrefix,
-		events:        make(chan *LogEvent),
 		buffEvents:    make(chan *LogEvent, LogBuffEventSize),
 		exitChan:      make(chan struct{}),
 		callDepth:     LogCallDepth,
@@ -53,67 +51,35 @@ func (l *Logger) UnInit() {
 }
 
 func (l *Logger) Debug(v ...interface{}) {
-	l.addEvent(LogDebug, fmt.Sprint(v...), false)
+	l.addEvent(LogDebug, fmt.Sprint(v...))
 }
 
 func (l *Logger) Debugf(format string, v ...interface{}) {
-	l.addEvent(LogDebug, fmt.Sprintf(format, v...), false)
-}
-
-func (l *Logger) DebugA(v ...interface{}) {
-	l.addEvent(LogDebug, fmt.Sprint(v...), true)
-}
-
-func (l *Logger) DebugAf(format string, v ...interface{}) {
-	l.addEvent(LogDebug, fmt.Sprintf(format, v...), true)
+	l.addEvent(LogDebug, fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) Info(v ...interface{}) {
-	l.addEvent(LogInfo, fmt.Sprint(v...), false)
+	l.addEvent(LogInfo, fmt.Sprint(v...))
 }
 
 func (l *Logger) Infof(format string, v ...interface{}) {
-	l.addEvent(LogInfo, fmt.Sprintf(format, v...), false)
-}
-
-func (l *Logger) InfoA(v ...interface{}) {
-	l.addEvent(LogInfo, fmt.Sprint(v...), true)
-}
-
-func (l *Logger) InfoAf(format string, v ...interface{}) {
-	l.addEvent(LogInfo, fmt.Sprintf(format, v...), true)
+	l.addEvent(LogInfo, fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) Warn(v ...interface{}) {
-	l.addEvent(LogWarn, fmt.Sprint(v...), false)
+	l.addEvent(LogWarn, fmt.Sprint(v...))
 }
 
 func (l *Logger) Warnf(format string, v ...interface{}) {
-	l.addEvent(LogWarn, fmt.Sprintf(format, v...), false)
-}
-
-func (l *Logger) WarnA(v ...interface{}) {
-	l.addEvent(LogWarn, fmt.Sprint(v...), true)
-}
-
-func (l *Logger) WarnAf(format string, v ...interface{}) {
-	l.addEvent(LogWarn, fmt.Sprintf(format, v...), true)
+	l.addEvent(LogWarn, fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) Error(v ...interface{}) {
-	l.addEvent(LogError, fmt.Sprint(v...), false)
+	l.addEvent(LogError, fmt.Sprint(v...))
 }
 
 func (l *Logger) Errorf(format string, v ...interface{}) {
-	l.addEvent(LogError, fmt.Sprintf(format, v...), false)
-}
-
-func (l *Logger) ErrorA(v ...interface{}) {
-	l.addEvent(LogError, fmt.Sprint(v...), true)
-}
-
-func (l *Logger) ErrorAf(format string, v ...interface{}) {
-	l.addEvent(LogError, fmt.Sprintf(format, v...), true)
+	l.addEvent(LogError, fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) startWriterGoroutine() {
@@ -128,16 +94,13 @@ func (l *Logger) startWriterGoroutine() {
 
 		exit := false
 		for {
-			if exit && len(l.buffEvents) == 0 && len(l.events) == 0 {
+			if exit && len(l.buffEvents) == 0 {
 				//ensure all log write file
 				l.out.Write(l.buf.Bytes())
 				return
 			}
 			select {
 			case evt := <-l.buffEvents:
-				l.outPut(evt.level, evt.content, evt.file, evt.line)
-				GLogEventPool.Put(evt)
-			case evt := <-l.events:
 				l.outPut(evt.level, evt.content, evt.file, evt.line)
 				GLogEventPool.Put(evt)
 			case <-l.exitChan:
@@ -153,7 +116,7 @@ func (l *Logger) close() {
 	close(l.exitChan)
 }
 
-func (l *Logger) addEvent(level int, content string, async bool) {
+func (l *Logger) addEvent(level int, content string) {
 	if l.closeFlag {
 		return
 	}
@@ -176,11 +139,7 @@ func (l *Logger) addEvent(level int, content string, async bool) {
 	event.file = partFileName
 	event.line = line
 
-	if async {
-		l.buffEvents <- event
-	} else {
-		l.events <- event
-	}
+	l.buffEvents <- event
 }
 
 func (l *Logger) outPut(level int, content string, file string, line int) {
